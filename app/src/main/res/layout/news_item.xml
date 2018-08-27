@@ -44,7 +44,6 @@
             android:layout_below="@id/news_section"
             android:gravity="bottom"
             android:padding="@dimen/activity_main_text_padding"
-            android:text="Maisarah Tito Chai"
             android:textColor="@color/colorPrimaryDark"
             android:textSize="15sp"
             tools:text="Name1 + Name2" />

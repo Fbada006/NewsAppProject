@@ -46,10 +46,9 @@ public class NewsArticleAdapter extends RecyclerView.Adapter<NewsArticleAdapter.
         //Set appropriate text on the views
         holder.newsTitle.setText(currentArticle.getNewsTitle());
         holder.newsSection.setText(currentArticle.getNewsSection());
-        // holder.newsAuthor.setText(org.apache.commons.text.WordUtils.capitalize(currentArticle.getNewsAuthor()));
+        holder.newsAuthor.setText(org.apache.commons.text.WordUtils.capitalize(currentArticle.getNewsAuthor()));
 
         //Present the date properly
-
         holder.newsDate.setText(formattedDate(currentArticle.getNewsDate()));
     }
 
