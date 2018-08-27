@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--Padding for the empty text view in activity_main.xml-->
+    <dimen name="activity_main_text_view_padding">8dp</dimen>
+
+    <!--The padding of the layout in the news_item.xml-->
+    <dimen name="item_layout_margin">8dp</dimen>
+
+    <!-- Height of each article item in the feature list -->
+    <dimen name="list_item_height">90dp</dimen>
+
+    <!--Padding for the date text view in the item-->
+    <dimen name="item_date_text_view_padding">8dp</dimen>
+
+    <!--Padding for all the texts in the item-->
+    <dimen name="activity_main_text_padding">2dp</dimen>
+
+    <!--Elevation of the cardView-->
+    <dimen name="item_card_elevation">8dp</dimen>
+</resources>
