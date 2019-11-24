@@ -1,243 +1,191 @@
-package com.disruption.newsapp;
+package android.example.newsapp;
+
 
 import android.app.LoaderManager;
 import android.content.Context;
 import android.content.Intent;
-import android.content.Loader;
 import android.content.SharedPreferences;
-import android.databinding.DataBindingUtil;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.Uri;
 import android.os.Bundle;
 import android.preference.PreferenceManager;
-import android.support.v4.widget.SwipeRefreshLayout;
-import android.support.v7.app.AppCompatActivity;
-import android.support.v7.widget.DefaultItemAnimator;
-import android.support.v7.widget.LinearLayoutManager;
-import android.support.v7.widget.RecyclerView;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.widget.AdapterView;
+import android.widget.ListView;
+import android.widget.TextView;
 
-import com.disruption.newsapp.adapter.NewsArticleAdapter;
-import com.disruption.newsapp.data.NewsArticle;
-import com.disruption.newsapp.data.NewsArticleLoader;
-import com.disruption.newsapp.databinding.ActivityMainBinding;
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class MainActivity extends AppCompatActivity implements LoaderManager.LoaderCallbacks<List<NewsArticle>>
-        , NewsArticleAdapter.RecyclerViewClickListener {
+public class MainActivity extends AppCompatActivity implements
+        LoaderManager.LoaderCallbacks<List<Sources>> {
 
-    //Constant integer value for the loader ID
-    private static final int EARTHQUAKE_LOADER_ID = 1;
+    private static final String TAG = "MainActivity";
 
-    /*The ArrayList for storing the list of articles*/
-    private List<NewsArticle> newsArticles;
+    /**
+     * Tag for the log messages
+     */
+    public static final String LOG_TAG = MainActivity.class.getSimpleName();
 
-    /*DataBinding instance*/
-    ActivityMainBinding activityMainBinding;
+    /**
+     * URL to query the USGS dataset for earthquake information
+     */
+    private static final String NEWS_REQUEST_URL =
+            "https://content.guardianapis.com/search?api-key=faf6054e-c5fb-4628-8b45-4b05e75cecfd";
 
-    /*Connectivity manager*/
-    private ConnectivityManager connectivityManager;
+    /**
+     * Constant value for the earthquake loader ID. We can choose any integer.
+     * This really only comes into play if you're using multiple loaders.
+     */
+    private static final int NEWS_LOADER_ID = 1;
 
-    /*Network info variable*/
-    NetworkInfo activeNetwork;
+    private NewsAdapter mAdapter;
 
-    /*The adapter*/
-    private NewsArticleAdapter newsArticleAdapter;
-
-    /*Base Url for fetching data from the Guardian server*/
-    private static final String GUARDIAN_REQUEST_URL =
-            "https://content.guardianapis.com/search?";
+    /**
+     * TextView that is displayed when the list is empty
+     */
+    private TextView mEmptyStateTextView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        activityMainBinding = DataBindingUtil.setContentView(this, R.layout.activity_main);
+        setContentView(R.layout.activity_main);
 
-        //Check for the network status first before starting the loader
-        connectivityManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
-        activeNetwork = null;
-        if (connectivityManager != null) {
-            activeNetwork = connectivityManager.getActiveNetworkInfo();
-        }
-        if (activeNetwork != null && activeNetwork.isConnected()) {
+        // Find a reference to the {@link ListView} in the layout
+        ListView newsListView = findViewById(R.id.list);
 
-            //Get a reference to the loader manager so that interaction with loaders can be made possible
-            LoaderManager loaderManager = getLoaderManager();
+        mEmptyStateTextView = findViewById(R.id.empty_view);
+        newsListView.setEmptyView(mEmptyStateTextView);
 
-            //Initialize the loader passing in the ID constant, null for the bundle and "this" for the
-            //last parameter since this activity implements the LoaderCallback interface
-            loaderManager.initLoader(EARTHQUAKE_LOADER_ID, null, MainActivity.this);
-        } else {
-            activityMainBinding.loadingArticlesProgressBar.setVisibility(View.GONE);
+        mAdapter = new NewsAdapter(this, new ArrayList<Sources>());
 
-            //Set the text to inform about a faulty connection
-            activityMainBinding.emptyView.setText(R.string.no_internet_connection);
-        }
-        //The ArrayList of news articles
-        newsArticles = new ArrayList<>();
+        // Set the adapter on the {@link ListView}
+        // so the list can be populated in the user interface
+        newsListView.setAdapter(mAdapter);
 
-        newsArticleAdapter = new NewsArticleAdapter(newsArticles, this);
-        activityMainBinding.recyclerView.setHasFixedSize(true);
-        RecyclerView.LayoutManager layoutManager = new LinearLayoutManager(this);
-        activityMainBinding.recyclerView.setLayoutManager(layoutManager);
-        activityMainBinding.recyclerView.setItemAnimator(new DefaultItemAnimator());
-
-        //Set the adapter to the recycler view
-        activityMainBinding.recyclerView.setAdapter(newsArticleAdapter);
-
-        //Refresh when swiping down
-        activityMainBinding.swipeRefresh.setOnRefreshListener(new SwipeRefreshLayout.OnRefreshListener() {
+        // Set an item click listener on the ListView, which sends an intent to a web browser
+        // to open a website with more information about the selected earthquake.
+        newsListView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
-            public void onRefresh() {
-                //Check for the network status first before starting the loader
-                connectivityManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
-                activeNetwork = null;
-                if (connectivityManager != null) {
-                    activeNetwork = connectivityManager.getActiveNetworkInfo();
-                }
-                if (activeNetwork != null && activeNetwork.isConnected()) {
+            public void onItemClick(AdapterView<?> adapterView, View view, int position, long l) {
+                // Find the current earthquake that was clicked on
+                Sources currentNews = mAdapter.getItem(position);
 
-                    //Get a reference to the loader manager so that interaction with loaders can be made possible
-                    LoaderManager loaderManager = getLoaderManager();
+                // Convert the String URL into a URI object (to pass into the Intent constructor)
+                Uri earthquakeUri = Uri.parse(currentNews.getUrl());
 
-                    //Initialize the loader passing in the ID constant, null for the bundle and "this" for the
-                    //last parameter since this activity implements the LoaderCallback interface
-                    loaderManager.initLoader(EARTHQUAKE_LOADER_ID, null, MainActivity.this);
-                } else {
-                    activityMainBinding.loadingArticlesProgressBar.setVisibility(View.GONE);
+                // Create a new intent to view the earthquake URI
+                Intent websiteIntent = new Intent(Intent.ACTION_VIEW, earthquakeUri);
 
-                    //Set the text to inform about a faulty connection
-                    activityMainBinding.emptyView.setText(R.string.no_internet_connection);
-                }
-
-                //Show that there was a successful load so the indicator should be hidden
-                activityMainBinding.swipeRefresh.setRefreshing(false);
-
-                //The ArrayList of news articles
-                newsArticles = new ArrayList<>();
-
-                newsArticleAdapter = new NewsArticleAdapter(newsArticles, MainActivity.this);
-                activityMainBinding.recyclerView.setHasFixedSize(true);
-                RecyclerView.LayoutManager layoutManager = new LinearLayoutManager(getApplicationContext());
-                activityMainBinding.recyclerView.setLayoutManager(layoutManager);
-                activityMainBinding.recyclerView.setItemAnimator(new DefaultItemAnimator());
-
-                //Set the adapter to the recycler view
-                activityMainBinding.recyclerView.setAdapter(newsArticleAdapter);
+                // Send the intent to launch a new activity
+                startActivity(websiteIntent);
             }
         });
 
-        //Set the refreshing color
-        activityMainBinding.swipeRefresh.setColorSchemeColors(getResources().getColor(R.color.colorAccent));
+        // Get a reference to the ConnectivityManager to check state of network connectivity
+        ConnectivityManager connMgr = (ConnectivityManager)
+                getSystemService(Context.CONNECTIVITY_SERVICE);
 
+        // Get details on the currently active default data network
+        NetworkInfo networkInfo = connMgr.getActiveNetworkInfo();
+
+        // If there is a network connection, fetch data
+        if (networkInfo != null && networkInfo.isConnected()) {
+            // Get a reference to the LoaderManager, in order to interact with loaders.
+            LoaderManager loaderManager = getLoaderManager();
+
+            // Initialize the loader. Pass in the int ID constant defined above and pass in null for
+            // the bundle. Pass in this activity for the LoaderCallbacks parameter (which is valid
+            // because this activity implements the LoaderCallbacks interface).
+            loaderManager.initLoader(NEWS_LOADER_ID, null, this);
+        } else {
+            // Otherwise, display error
+            // First, hide loading indicator so error message will be visible
+            View loadingIndicator = findViewById(R.id.loading_indicator);
+            loadingIndicator.setVisibility(View.GONE);
+
+            // Update empty state with no connection error message
+            mEmptyStateTextView.setText(R.string.no_internet_connection);
+        }
     }
 
     @Override
-    public Loader<List<NewsArticle>> onCreateLoader(int id, Bundle args) {
-        //Get the shared preferences
-        SharedPreferences sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this);
+    public android.content.Loader<List<Sources>> onCreateLoader(int i, Bundle bundle) {
 
-        //Retrieve the string value from the preferences
-        String orderBy = sharedPreferences.getString(
+        SharedPreferences sharedPrefs = PreferenceManager.getDefaultSharedPreferences(this);
+        String minMagnitude = sharedPrefs.getString(
+                getString(R.string.settings_min_magnitude_key),
+                getString(R.string.settings_min_magnitude_default));
+
+        String orderBy = sharedPrefs.getString(
                 getString(R.string.settings_order_by_key),
                 getString(R.string.settings_order_by_default));
 
-        //Retrieve the query value
-        String query = sharedPreferences.getString(
-                getString(R.string.settings_query_key),
-                getString(R.string.settings_query_default));
+        Uri baseUri = Uri.parse(NEWS_REQUEST_URL);
+        Uri.Builder uriBuilder = baseUri.buildUpon();
 
+        uriBuilder.appendQueryParameter("format", "json");
+        uriBuilder.appendQueryParameter("limit", "10");
+        uriBuilder.appendQueryParameter("minmag", minMagnitude);
+        uriBuilder.appendQueryParameter("orderby", orderBy);
 
-        //Parse the base URL
-        Uri baseUri = Uri.parse(GUARDIAN_REQUEST_URL);
-        Uri.Builder builder = baseUri.buildUpon();
+        Log.e(TAG, "onCreateLoader: -----------" + baseUri );
 
-        //Append the necessary parameters from the preferences
-        if (!query.isEmpty()) {
-            builder.appendQueryParameter("q", query);
-        } else {
-            builder.appendQueryParameter("q", "football");
+        return new NewsLoader(this, uriBuilder.toString());
+    }
+
+    @Override
+    public void onLoadFinished(@NonNull android.content.Loader<List<Sources>> loader, List<Sources> newsList) {
+        // Hide loading indicator because the data has been loaded
+        View loadingIndicator = findViewById(R.id.loading_indicator);
+        loadingIndicator.setVisibility(View.GONE);
+
+        // Set empty state text to display "No earthquakes found."
+        mEmptyStateTextView.setText(R.string.no_earthquakes);
+
+        // Clear the adapter of previous earthquake data
+        mAdapter.clear();
+
+        Log.e("Main Activity", "onLoadFinished data ---------------: " + newsList );
+
+        // If there is a valid list of {@link Earthquake}s, then add them to the adapter's
+        // data set. This will trigger the ListView to update.
+        if (newsList != null && !newsList.isEmpty()) {
+            mAdapter.addAll(newsList);
         }
-
-        //Get the API Key
-        String apiKey = BuildConfig.GuardianSecretKey;
-
-        builder.appendQueryParameter("show-tags", "contributor");
-        builder.appendQueryParameter("show-fields", "headline");
-        builder.appendQueryParameter("page-size", "50");
-        builder.appendQueryParameter("order-by", orderBy);
-        builder.appendQueryParameter("api-key", apiKey);
-
-        //Create and return a new loader using the Uri above
-        return new NewsArticleLoader(this, builder.toString());
     }
 
     @Override
-    public void onLoadFinished(Loader<List<NewsArticle>> loader, List<NewsArticle> articles) {
-        //Hide the loading indicator
-        activityMainBinding.loadingArticlesProgressBar.setVisibility(View.GONE);
-
-        //Clear any existing data
-        newsArticleAdapter.clear();
-
-        //Make sure that there is a valid list of articles to add to the arrayList
-        if (articles != null && !articles.isEmpty()) {
-            newsArticleAdapter.addAll(articles);
-        } else {
-            //Set the appropriate text that there were no articles found
-            activityMainBinding.emptyView.setText(R.string.no_articles_found);
-        }
-
-        //Stop the loader to allow for swipe to refresh
-        getLoaderManager().destroyLoader(loader.getId());
+    public void onLoaderReset(@NonNull android.content.Loader<List<Sources>> loader) {
+        // Loader reset, so we can clear out our existing data.
+        mAdapter.clear();
     }
 
-    @Override
-    public void onLoaderReset(Loader<List<NewsArticle>> loader) {
-        //Clear the list
-        newsArticleAdapter.clear();
-
-    }
 
     @Override
-    public void onRecyclerViewItemClicked(View view, int position) {
-        //Get the current feature
-        NewsArticle currentArticle = newsArticles.get(position);
-
-        //Parse the url
-        Uri newsArticleUri = Uri.parse(currentArticle.getNewsUrl());
-
-        //Create a new implicit intent for every item clicked
-        Intent openWebPageIntent = new Intent(Intent.ACTION_VIEW, newsArticleUri);
-
-        //Start the Intent
-        startActivity(openWebPageIntent);
-    }
-
-    /**
-     * This method initialize the contents of the Activity's options menu.
-     */
-    @Override
+    // This method initialize the contents of the Activity's options menu.
     public boolean onCreateOptionsMenu(Menu menu) {
+        // Inflate the Options Menu we specified in XML
         getMenuInflater().inflate(R.menu.main, menu);
         return true;
     }
 
-    /**
-     * Specify what happens after the menu item is pressed
-     */
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        if (item.getItemId() == R.id.action_settings) {
+        int id = item.getItemId();
+        if (id == R.id.action_settings) {
             Intent settingsIntent = new Intent(this, SettingsActivity.class);
             startActivity(settingsIntent);
             return true;
         }
         return super.onOptionsItemSelected(item);
     }
+
 }
